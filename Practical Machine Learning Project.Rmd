@@ -1,0 +1,84 @@
+---
+title: "Practical Machine Learning Project"
+author: "Ivy Wang"
+date: "2017/6/28"
+output: html_document
+---
+## Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. 
+
+## Data source
+The training data for this project are available here:
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from http://groupware.les.inf.puc-rio.br/har. Full source:
+
+Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. “Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human ’13)”. Stuttgart, Germany: ACM SIGCHI, 2013.
+
+I really apprieciate all above mentioned authors for being so generous in allowing their data to be used for this kind of assignment.
+
+## Load and process data
+Firstly upload the necessary libraries to create a analysis environment.
+```{r}
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(randomForest)
+library("corrplot", lib.loc="/Library/Frameworks/R.framework/Versions/3.4/Resources/library")
+library(repmis)
+set.seed(2333)
+
+```
+Secondly load and process data,make it tidy and clean.
+```{r}
+training <- read.csv("pml-training.csv", na.strings = c("NA", ""))
+testing <- read.csv("pml-testing.csv", na.strings = c("NA", ""))
+##eliminate variables most of NA
+training <- training[, colSums(is.na(training)) == 0]
+testing <- testing[, colSums(is.na(testing)) == 0]
+##remove columns only variables
+training <- training[,-c(1:7)]
+testing<- testing[, -c(1:7)]
+                   
+dim(training)
+dim(testing)
+```
+Thirdly, split tidy data. I prefer to set a 70/30 proportion to compute the out of sample error. Cut the the tidy training data into two part: training set ( 70%) for prediction and validation set ( 30% )
+```{r}
+inTrain <- createDataPartition(training$classe, p = 0.7, list = FALSE)
+train <- training[inTrain, ]
+valid <- training[-inTrain, ]
+dim(train)
+dim(valid)
+```
+## Modeling and exploratory analysis
+Before we proceed model procedules, we'd better check the correation among variables. The darker color means the higher corelation.
+```{r}
+corMatrix <- cor(train[, -53])
+corrplot(corMatrix, order = "FPC", method = "color", type = "lower", 
+         tl.cex = 0.8, tl.col = rgb(0, 0, 0))
+```
+
+## Random forests
+```{r}
+control <- trainControl(method = "cv", number = 5)
+fit_rf <- train(classe ~ ., data = train, method = "rf", 
+                   trControl = control)
+print(fit_rf, digits = 4)
+
+# predict outcomes using validation set
+predict_rf <- predict(fit_rf, valid)
+# Show prediction result
+(conf_rf <- confusionMatrix(valid$classe, predict_rf))
+```
+Accuracy reaches 0.991 and out of sample error rate is 0.009, so random forest method is pretty good. It shows many predictors are highly correlated. Random forests chooses a subset of predictors at each split and decorrelate the trees. 
+
+## Prediction on testing set
+Since the result of random forest is quite reliable, we can predict now.
+```{r}
+predict(fit_rf, testing)
+```
